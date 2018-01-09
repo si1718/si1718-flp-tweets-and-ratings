@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>com.data-artisans</groupId>
+  <artifactId>flakka-slf4j_2.10</artifactId>
+  <versioning>
+    <release>2.3-custom</release>
+    <versions>
+      <version>2.3-custom</version>
+    </versions>
+    <lastUpdated>20180109024139</lastUpdated>
+  </versioning>
+</metadata>
