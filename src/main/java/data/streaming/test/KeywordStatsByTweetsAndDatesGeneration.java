@@ -26,30 +26,37 @@ import com.mongodb.client.model.FindOneAndUpdateOptions;
 import com.mongodb.client.model.ReturnDocument;
 import com.mongodb.client.result.UpdateResult;
 
-public class TestBatch {
+public class KeywordStatsByTweetsAndDatesGeneration {
 	
+	/**
+	 * 
+	 * This process extract information from tweets stored in a database. It detects the number of matches for each keyword
+	 * used in a Grant Database 
+	 */
 	public static void main(String... args) throws Exception {
+		
+		
+		// DB access used in the microservice secure section
 		MongoClientURI uri = new MongoClientURI("mongodb://admin:passwordCurro@ds129386.mlab.com:29386/si1718-flp-grants-secure");
+		
+		// DB access used in the microservice basic section
 		//MongoClientURI uri = new MongoClientURI("mongodb://curro:curro@ds149855.mlab.com:49855/si1718-flp-grants");
+		
 		MongoClient client = new MongoClient(uri);
 		MongoDatabase db = client.getDatabase(uri.getDatabase());
 		
-		//For Twitter dates:
+		//Tweets date format:
 		SimpleDateFormat format = new SimpleDateFormat("EEE MMM dd HH:mm:ss ZZZZZ yyyy",Locale.ENGLISH);
 		format.setLenient(true);
 		
 		// Date format for statistics
 		SimpleDateFormat statisticsFormat = new SimpleDateFormat("yyyy-MM-dd");
 		
-		// Retrieving a collection
+		// Retrieving mongoDB collections
 	
 		MongoCollection<org.bson.Document> tweetsCollection = db.getCollection("tweets");
 		MongoCollection<org.bson.Document> grantsCollection = db.getCollection("grants");
 		MongoCollection<org.bson.Document> grantStatisticsCollection = db.getCollection("grantStatistics");
-		
-		//List<org.bson.Document> grantDocuments = (List<org.bson.Document>) grantsCollection.find().into(new ArrayList<org.bson.Document>());
-		//List<org.bson.Document> tweetsDocuments = (List<org.bson.Document>) tweetsCollection.find().into(new ArrayList<org.bson.Document>());
-		
 		
 		MongoCursor<String> keywordSet = grantsCollection.distinct("keywords", String.class).iterator();
 		
@@ -58,6 +65,8 @@ public class TestBatch {
 		
 		while(keywordSet.hasNext()) {
 			String keyword = keywordSet.next();
+			
+			// Use this code if the you want filter some basic keywords like prepositions or words wich firts word isn't upper case
 			/*if(Character.isUpperCase(keyword.charAt(0)) && keyword.length() >3 && !Character.isUpperCase(keyword.charAt(1))) {
 				String keywordProccessed = keyword.replace(",", "");
 				keywordProccessed = keywordProccessed.replace(":", "");
@@ -65,6 +74,8 @@ public class TestBatch {
 				totalKeywordSet.add(keywordProccessed);
 				System.out.println(keywordProccessed);
 			}*/
+			
+			// Remove some characters. It can be improved by using a correct reg exp
 			keyword = keyword.replaceAll("\"", "").replaceAll("\\?", "").replaceAll("\\)", "");
 			if(keyword.contains("/")){
 				for(String k : keyword.split("/")) {
@@ -94,9 +105,7 @@ public class TestBatch {
 		Date previousDay = date.getTime();
 		//Long lastWeekLong = lastWeek.getTime();
 		
-		// Iteramos por siete d�as
-		
-		
+		// seven days iteration. It is useful in the context you don't launch this batch daily
 		for (int i = 0; i <7 ; i++) {
 			
 			long initDay = previousDay.getTime();
@@ -104,13 +113,13 @@ public class TestBatch {
 			previousDay = date.getTime();
 			long endDay = previousDay.getTime();
 			
-			// Buscamos por fecha entre hoy y ma�ana en mongoDB para cada una de las keywords
+			// We search by date between today and tomorrow in mongoDB for each of the keywords
 			Map<String,Integer> nTweets = new HashMap<String, Integer>();
 			
 			BasicDBObject andQuery = new BasicDBObject();;
 			for(String keywordS : totalKeywordSet) {
 				
-				// Creacion de la query: numero de tweets de hoy y que tenga la keyword 
+				// Creation of the query: number of tweets of this day that contains the keyword
 				andQuery = new BasicDBObject();
 				List<BasicDBObject> andQuerySegments = new ArrayList<>();
 				andQuerySegments.add(new BasicDBObject("creationDateLong", new BasicDBObject("$gte", initDay)));
@@ -121,35 +130,21 @@ public class TestBatch {
 				List<org.bson.Document> grantDocumentsForKeyWord = 
 						(List<org.bson.Document>) tweetsCollection.find(andQuery).into(new ArrayList<org.bson.Document>());
 				
-				// almacenamos la cantidad de tweets asociado al keyword
+				// We store the amount of tweets associated with the keyword
 				nTweets.put(keywordS, grantDocumentsForKeyWord.size());
 				if(nTweets.get(keywordS) > 0)
-					System.out.println("Para la key: " + keywordS + " tenemos " + nTweets.get(keywordS) + " ocurrencias");
+					System.out.println("For the kyword: " + keywordS + " we have " + nTweets.get(keywordS) + " ocurrences");
 			}
 			System.out.println(andQuery);
 			
 			String dateStr = statisticsFormat.format(initDay);
 			
-			// Ahora introducimos las keywords en la db
+			// Now we introduce the keyword statistics in the DB
 			
-			
-			System.out.println("Para la fecha: " + dateStr);
+			System.out.println("Date: " + dateStr);
 			
 			for(String keywordM : nTweets.keySet()) {
 				Integer nTweet = nTweets.get(keywordM);
-				
-				/*
-				Document documentDetail = new Document();
-				documentDetail.put("idKeywordStatistic", keywordM + "-" + dateStr);
-				documentDetail.put("keyword", keywordM);
-				documentDetail.put("tweets", nTweet);
-				documentDetail.put("date", dateStr);
-				documentDetail.put("dateLong", initDay);
-				
-				FindOneAndReplaceOptions options = new FindOneAndReplaceOptions().upsert(true);
-				grantStatisticsCollection.findOneAndReplace(new BasicDBObject("idKeywordStatistic", keywordM + "-" + dateStr), documentDetail, options);
-				*/
-				
 				
 				BasicDBObject query = new BasicDBObject();
 				List<BasicDBObject> andQueryParams = new ArrayList<>();
@@ -164,6 +159,7 @@ public class TestBatch {
 				
 				
 				FindOneAndUpdateOptions optionsU = new FindOneAndUpdateOptions().upsert(true);
+				//Check if keyword-date combination exist in the database and update it. If not, insert new
 				grantStatisticsCollection.findOneAndUpdate(query, update, optionsU);
 				
 				System.out.println("Keyword: " + keywordM + ", tweets: " + nTweet);

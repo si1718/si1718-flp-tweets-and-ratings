@@ -43,7 +43,6 @@ public class TestFlinkKafkaConsumer {
 		}catch(NullPointerException e) {
 			System.out.println("Error controlado");
 		}
-		// TODO 4: Hacer algo más interesante que mostrar por pantalla.
 
 		// execute program
 		env.execute("Twitter Streaming Consumer");
